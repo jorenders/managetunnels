@@ -134,7 +134,7 @@ export default function CloudflareTunnelManager() {
             <motion.div
               initial={{ opacity: 0, y: -8 }}
               animate={{ opacity: 1, y: 0 }}
-              className={\`flex items-center gap-2 p-2 rounded-lg text-sm font-medium \${status.ok ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}\`}
+              className={`flex items-center gap-2 p-2 rounded-lg text-sm font-medium \${status.ok ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}
             >
               {status.ok ? <CheckCircle size={18} /> : <XCircle size={18} />}
               {status.msg}
