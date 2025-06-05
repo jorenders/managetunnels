@@ -89,7 +89,7 @@ export default function CloudflareTunnelManager() {
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <Card className="w-full max-w-xl shadow-xl">
         <CardContent className="p-6 space-y-6">
-          <h1 className="text-2xl font-semibold">Cloudflare Tunnel Manager</h1>
+          <h1 className="text-2xl font-semibold">Cloudflare Tunnel Manager House IQ</h1>
           <div className="grid grid-cols-1 gap-4">
             <Input
               placeholder="Account ID"
