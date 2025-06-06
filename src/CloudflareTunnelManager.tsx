@@ -2,72 +2,92 @@ import React, { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, CheckCircle, XCircle, PlusCircle, Trash2, Copy } from "lucide-react";
+import { Loader2, CheckCircle, XCircle, PlusCircle, Trash2, Copy, Globe2 } from "lucide-react";
 import { motion } from "framer-motion";
 
-// Lees het build‑nummer uit een Vite‑env var (stel VITE_BUILD in je CI/CD)
 const BUILD = import.meta.env.VITE_BUILD ?? "dev";
 
-/**
- * Cloudflare Tunnel Manager – front‑end die via Worker‑proxy praat.
- */
 export default function CloudflareTunnelManager() {
   const [tunnelName, setTunnelName] = useState("api-tunnel");
   const [tunnelId, setTunnelId] = useState("");
   const [tunnelToken, setTunnelToken] = useState("");
+  const [publicHostname, setPublicHostname] = useState<string | null>(null);
   const [status, setStatus] = useState<null | { ok: boolean; msg: string }>(null);
   const [loading, setLoading] = useState(false);
 
   const API = "https://tunnel-api.jo-renders.workers.dev";
+  const FIXED_DOMAIN = "house-iq.cc";
+  const FIXED_SERVICE = "http://homeassistant:8123";
 
+  /* ---------------- helpers ---------------- */
+  function show(ok: boolean, msg: string) {
+    setStatus({ ok, msg });
+  }
+
+  /* ---------------- create tunnel + hostname ---------------- */
   async function createTunnel() {
     setLoading(true);
     setStatus(null);
     try {
+      /* 1. create tunnel */
       const res = await fetch(`${API}/api/create`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: tunnelName }),
       });
       const json = await res.json();
-      if (json.success) {
-        setTunnelId(json.result.id);
-        setTunnelToken(json.result.token);
-        setStatus({ ok: true, msg: `Tunnel created (id: ${json.result.id})` });
-      } else {
-        throw new Error(json.errors?.[0]?.message || "Unknown error");
-      }
+      if (!json.success) throw new Error("Tunnel create failed");
+
+      const id = json.result.id as string;
+      setTunnelId(id);
+      setTunnelToken(json.result.token as string);
+
+      /* 2. create public hostname */
+      const hostRes = await fetch(`${API}/api/hostname`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tunnel_id: id,
+          subdomain: tunnelName,
+          domain: FIXED_DOMAIN,
+          service: FIXED_SERVICE,
+        }),
+      });
+      const hostJson = await hostRes.json();
+      if (!hostJson.success) throw new Error("Hostname create failed");
+      setPublicHostname(`${tunnelName}.${FIXED_DOMAIN}`);
+
+      show(true, `Tunnel + hostname ready (${id})`);
     } catch (e: any) {
-      setStatus({ ok: false, msg: e.message });
+      show(false, e.message);
     } finally {
       setLoading(false);
     }
   }
 
+  /* ---------------- delete tunnel ---------------- */
   async function deleteTunnel() {
-    if (!tunnelId) {
-      setStatus({ ok: false, msg: "No tunnel ID set" });
-      return;
-    }
+    if (!tunnelId) return show(false, "No tunnel ID set");
+
     setLoading(true);
     setStatus(null);
     try {
       const res = await fetch(`${API}/api/delete/${tunnelId}`, { method: "DELETE" });
       const json = await res.json();
-      if (json.success) {
-        setStatus({ ok: true, msg: `Tunnel ${tunnelId} deleted` });
-        setTunnelId("");
-        setTunnelToken("");
-      } else {
-        throw new Error(json.errors?.[0]?.message || "Unknown error");
-      }
+      if (!json.success) throw new Error("Delete failed");
+
+      setTunnelId("");
+      setTunnelToken("");
+      setPublicHostname(null);
+      show(true, `Tunnel ${tunnelId} deleted`);
     } catch (e: any) {
-      setStatus({ ok: false, msg: e.message });
+      show(false, e.message);
     } finally {
       setLoading(false);
     }
   }
 
+  /* ---------------- UI ---------------- */
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <Card className="w-full max-w-xl shadow-xl">
@@ -114,6 +134,20 @@ export default function CloudflareTunnelManager() {
             </div>
           )}
 
+          {publicHostname && (
+            <div className="flex items-center gap-2 text-sm text-blue-700">
+              <Globe2 size={14} />
+              <a
+                href={`https://${publicHostname}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline"
+              >
+                {publicHostname}
+              </a>
+            </div>
+          )}
+
           {status && (
             <motion.div
               initial={{ opacity: 0, y: -8 }}
@@ -125,7 +159,7 @@ export default function CloudflareTunnelManager() {
           )}
 
           <p className="text-xs text-gray-500">
-            Requests gaan via de Worker‑proxy (<code>{API}</code>). Token staat server‑side; CORS opgelost.
+            Tunnel wordt nu automatisch gekoppeld aan <code>{`*.${FIXED_DOMAIN}`}</code> ↔︎ <code>{FIXED_SERVICE}</code>.
           </p>
 
           <p className="text-[10px] text-gray-400 text-center">Build: {BUILD}</p>
