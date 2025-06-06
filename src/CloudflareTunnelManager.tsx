@@ -65,21 +65,29 @@ export default function CloudflareTunnelManager() {
     }
   }
 
-  /* ---------------- delete tunnel ---------------- */
+  // ─── delete tunnel + cname ───────────────────────────────────────────
   async function deleteTunnel() {
     if (!tunnelId) return show(false, "No tunnel ID set");
 
     setLoading(true);
     setStatus(null);
     try {
+      // 1️⃣ delete tunnel
       const res = await fetch(`${API}/api/delete/${tunnelId}`, { method: "DELETE" });
       const json = await res.json();
-      if (!json.success) throw new Error("Delete failed");
+      if (!json.success) throw new Error("Delete tunnel failed");
+
+      // 2️⃣ delete CNAME (ignore duplicate-fail)
+      await fetch(`${API}/api/hostname`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ subdomain: tunnelName, domain: FIXED_DOMAIN }),
+      });
 
       setTunnelId("");
       setTunnelToken("");
       setPublicHostname(null);
-      show(true, `Tunnel ${tunnelId} deleted`);
+      show(true, `Tunnel + hostname deleted`);
     } catch (e: any) {
       show(false, e.message);
     } finally {
