@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, CheckCircle, XCircle, PlusCircle, Trash2 } from "lucide-react";
+import { Loader2, CheckCircle, XCircle, PlusCircle, Trash2, Copy } from "lucide-react";
 import { motion } from "framer-motion";
 
 // Lees het build‑nummer uit een Vite‑env var (stel VITE_BUILD in je CI/CD)
@@ -14,6 +14,7 @@ const BUILD = import.meta.env.VITE_BUILD ?? "dev";
 export default function CloudflareTunnelManager() {
   const [tunnelName, setTunnelName] = useState("api-tunnel");
   const [tunnelId, setTunnelId] = useState("");
+  const [tunnelToken, setTunnelToken] = useState("");
   const [status, setStatus] = useState<null | { ok: boolean; msg: string }>(null);
   const [loading, setLoading] = useState(false);
 
@@ -31,6 +32,7 @@ export default function CloudflareTunnelManager() {
       const json = await res.json();
       if (json.success) {
         setTunnelId(json.result.id);
+        setTunnelToken(json.result.token);
         setStatus({ ok: true, msg: `Tunnel created (id: ${json.result.id})` });
       } else {
         throw new Error(json.errors?.[0]?.message || "Unknown error");
@@ -55,6 +57,7 @@ export default function CloudflareTunnelManager() {
       if (json.success) {
         setStatus({ ok: true, msg: `Tunnel ${tunnelId} deleted` });
         setTunnelId("");
+        setTunnelToken("");
       } else {
         throw new Error(json.errors?.[0]?.message || "Unknown error");
       }
@@ -97,6 +100,19 @@ export default function CloudflareTunnelManager() {
               {loading ? <Loader2 className="animate-spin w-4 h-4" /> : <Trash2 size={16} />} Delete
             </Button>
           </div>
+
+          {tunnelToken && (
+            <div className="bg-gray-100 rounded-lg p-3 text-xs break-all flex items-start gap-2">
+              <span className="flex-1">{tunnelToken}</span>
+              <button
+                onClick={() => navigator.clipboard.writeText(tunnelToken)}
+                title="Copy token"
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <Copy size={14} />
+              </button>
+            </div>
+          )}
 
           {status && (
             <motion.div
