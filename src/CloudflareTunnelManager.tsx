@@ -5,19 +5,18 @@ import { Input } from "@/components/ui/input";
 import { Loader2, CheckCircle, XCircle, PlusCircle, Trash2 } from "lucide-react";
 import { motion } from "framer-motion";
 
+// Lees het build‑nummer uit een Vite‑env var (stel VITE_BUILD in je CI/CD)
+const BUILD = import.meta.env.VITE_BUILD ?? "dev";
+
 /**
- * Cloudflare Tunnel Manager – front‑end versie die via een Worker‑proxy
- *   /api/create  → POST { name }
- *   /api/delete/:id → DELETE
- * praat i.p.v. direct naar api.cloudflare.com
+ * Cloudflare Tunnel Manager – front‑end die via Worker‑proxy praat.
  */
 export default function CloudflareTunnelManager() {
   const [tunnelName, setTunnelName] = useState("api-tunnel");
-  const [tunnelId, setTunnelId]   = useState("");
-  const [status, setStatus]       = useState<null | { ok: boolean; msg: string }>(null);
-  const [loading, setLoading]     = useState(false);
+  const [tunnelId, setTunnelId] = useState("");
+  const [status, setStatus] = useState<null | { ok: boolean; msg: string }>(null);
+  const [loading, setLoading] = useState(false);
 
-  /** Base‑URL van je Worker (aanpassen indien eigen domein) */
   const API = "https://tunnel-api.jo-renders.workers.dev";
 
   async function createTunnel() {
@@ -71,6 +70,7 @@ export default function CloudflareTunnelManager() {
       <Card className="w-full max-w-xl shadow-xl">
         <CardContent className="p-6 space-y-6">
           <h1 className="text-2xl font-semibold">Cloudflare Tunnel Manager</h1>
+
           <div className="grid gap-4">
             <Input
               placeholder="Tunnel Name"
@@ -109,8 +109,10 @@ export default function CloudflareTunnelManager() {
           )}
 
           <p className="text-xs text-gray-500">
-            Requests gaan nu via de Worker‑proxy (<code>{API}</code>). Je token is server‑side opgeslagen en CORS is opgelost.
+            Requests gaan via de Worker‑proxy (<code>{API}</code>). Token staat server‑side; CORS opgelost.
           </p>
+
+          <p className="text-[10px] text-gray-400 text-center">Build: {BUILD}</p>
         </CardContent>
       </Card>
     </div>
