@@ -24,6 +24,7 @@ export default function CloudflareTunnelManager() {
   const [publicHostname, setPublicHostname] = useState<string | null>(null);
   const [status, setStatus] = useState<null | { ok: boolean; msg: string }>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);  // ← toegevoegd
 
   // ─── constants ────────────────────────────────────────────────────────
   const API = "https://tunnel-api.jo-renders.workers.dev";
@@ -35,7 +36,6 @@ export default function CloudflareTunnelManager() {
     setStatus({ ok, msg });
   }
 
-  // build YAML snippet for config
   function buildYaml(token: string, hostname: string) {
     return (
 `external_hostname: ${hostname}
@@ -47,14 +47,14 @@ log_level: debug
 run_parameters:
   - "--logfile=/config/cloudflared.log"
   - "--loglevel=debug"
-  - "--retries=0"`
-    );
+  - "--retries=0"`);
   }
 
   // ─── create tunnel + hostname ─────────────────────────────────────────
   async function createTunnel() {
     setLoading(true);
     setStatus(null);
+    setError(null);                    // reset
     try {
       // 1️⃣ create tunnel
       const res = await fetch(`${API}/api/create`, {
@@ -62,14 +62,14 @@ run_parameters:
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: tunnelName }),
       });
-      const json = await response.json();
+      const json = await res.json();   // ← gebruik 'res', niet 'response'
       if (!json.success) {
         setDebugLogs(json.debug || []);
         setError(json.errors?.[0]?.message || "Unknown error");
-      } else {
-        setDebugLogs(json.debug || []);
-        // … rest van je success-flow …
+        setLoading(false);
+        return;
       }
+      setDebugLogs(json.debug || []);
 
       const id = json.result.id as string;
       setTunnelId(id);
@@ -88,15 +88,14 @@ run_parameters:
       });
       const hostJson = await hostRes.json();
       if (!hostJson.success) {
-        console.error('Hostname create error', hostJson);
-        show(false, hostJson.errors?.[0]?.message || 'Hostname create failed');
+        setDebugLogs(hostJson.debug || []);
+        setError(hostJson.errors?.[0]?.message || "Hostname create failed");
         return;
       }
       setPublicHostname(`${tunnelName}.${FIXED_DOMAIN}`);
-
       show(true, `Tunnel + hostname ready (${id})`);
     } catch (e: any) {
-      show(false, e.message);
+      setError(e.message);
     } finally {
       setLoading(false);
     }
@@ -105,11 +104,12 @@ run_parameters:
   // ─── delete tunnel + CNAME ────────────────────────────────────────────
   async function deleteTunnel() {
     if (!tunnelId) {
-      show(false, "No tunnel ID set");
+      setError("No tunnel ID set");
       return;
     }
     setLoading(true);
     setStatus(null);
+    setError(null);
     try {
       const res = await fetch(`${API}/api/delete/${tunnelId}`, { method: "DELETE" });
       const json = await res.json();
@@ -126,7 +126,7 @@ run_parameters:
       setPublicHostname(null);
       show(true, `Tunnel + hostname deleted`);
     } catch (e: any) {
-      show(false, e.message);
+      setError(e.message);
     } finally {
       setLoading(false);
     }
