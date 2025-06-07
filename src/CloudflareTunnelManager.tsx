@@ -1,3 +1,4 @@
+// src/CloudflareTunnelManager.tsx
 import React, { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -24,10 +25,11 @@ export default function CloudflareTunnelManager() {
   const [publicHostname, setPublicHostname] = useState<string | null>(null);
   const [status, setStatus] = useState<null | { ok: boolean; msg: string }>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);  // ← toegevoegd
+  const [error, setError] = useState<string | null>(null);
 
   // ─── constants ────────────────────────────────────────────────────────
-  const API = "https://tunnel-api.jo-renders.workers.dev";
+  // Gebruik relatieve URL zodat CORS niet in de weg zit
+  const API_BASE = "/api";
   const FIXED_DOMAIN = "house-iq.cc";
   const FIXED_SERVICE = "http://homeassistant:8123";
 
@@ -54,29 +56,39 @@ run_parameters:
   async function createTunnel() {
     setLoading(true);
     setStatus(null);
-    setError(null);                    // reset
+    setError(null);
+    const logs: string[] = [];
+    setDebugLogs([]);
+
     try {
+      logs.push(`🚀 Starting createTunnel for name="${tunnelName}"`);
+
       // 1️⃣ create tunnel
-      const res = await fetch(`${API}/api/create`, {
+      const res = await fetch(`${API_BASE}/create`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: tunnelName }),
       });
-      const json = await res.json();   // ← gebruik 'res', niet 'response'
+      logs.push(`⬅️ [create] status=${res.status}`);
+      const json = await res.json();
+      logs.push(`⬅️ [create] body=${JSON.stringify(json)}`);
+
       if (!json.success) {
-        setDebugLogs(json.debug || []);
+        logs.push(`❌ create failed: ${json.errors?.[0]?.message}`);
+        setDebugLogs(logs);
         setError(json.errors?.[0]?.message || "Unknown error");
-        setLoading(false);
         return;
       }
-      setDebugLogs(json.debug || []);
 
       const id = json.result.id as string;
+      const token = json.result.token as string;
+      logs.push(`✅ Tunnel created with id=${id}`);
       setTunnelId(id);
-      setTunnelToken(json.result.token as string);
+      setTunnelToken(token);
 
       // 2️⃣ create hostname
-      const hostRes = await fetch(`${API}/api/hostname`, {
+      logs.push(`➡️ Configuring hostname for "${tunnelName}.${FIXED_DOMAIN}"`);
+      const hostRes = await fetch(`${API_BASE}/hostname`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -86,16 +98,25 @@ run_parameters:
           service: FIXED_SERVICE,
         }),
       });
+      logs.push(`⬅️ [hostname] status=${hostRes.status}`);
       const hostJson = await hostRes.json();
+      logs.push(`⬅️ [hostname] body=${JSON.stringify(hostJson)}`);
+
       if (!hostJson.success) {
-        setDebugLogs(hostJson.debug || []);
+        logs.push(`❌ hostname create failed: ${hostJson.errors?.[0]?.message}`);
+        setDebugLogs(logs);
         setError(hostJson.errors?.[0]?.message || "Hostname create failed");
         return;
       }
+      logs.push("✅ Hostname configured");
       setPublicHostname(`${tunnelName}.${FIXED_DOMAIN}`);
+
       show(true, `Tunnel + hostname ready (${id})`);
     } catch (e: any) {
-      setError(e.message);
+      const msg = e.message || "Network or CORS error";
+      logs.push(`❌ fetch threw error: ${msg}`);
+      setDebugLogs(logs);
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -110,23 +131,46 @@ run_parameters:
     setLoading(true);
     setStatus(null);
     setError(null);
-    try {
-      const res = await fetch(`${API}/api/delete/${tunnelId}`, { method: "DELETE" });
-      const json = await res.json();
-      if (!json.success) throw new Error("Delete tunnel failed");
+    const logs: string[] = [];
+    setDebugLogs([]);
 
-      await fetch(`${API}/api/hostname`, {
+    try {
+      logs.push(`🚀 Starting deleteTunnel for id="${tunnelId}"`);
+
+      // delete tunnel
+      const res = await fetch(`${API_BASE}/delete/${tunnelId}`, { method: "DELETE" });
+      logs.push(`⬅️ [delete tunnel] status=${res.status}`);
+      const json = await res.json();
+      logs.push(`⬅️ [delete tunnel] body=${JSON.stringify(json)}`);
+
+      if (!json.success) {
+        logs.push(`❌ delete tunnel failed`);
+        setDebugLogs(logs);
+        setError("Delete tunnel failed");
+        return;
+      }
+
+      // delete CNAME
+      logs.push(`➡️ Deleting CNAME for "${tunnelName}.${FIXED_DOMAIN}"`);
+      const cnameRes = await fetch(`${API_BASE}/hostname`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ subdomain: tunnelName, domain: FIXED_DOMAIN }),
       });
+      logs.push(`⬅️ [delete CNAME] status=${cnameRes.status}`);
+      const cnameJson = await cnameRes.json().catch(() => null);
+      logs.push(`⬅️ [delete CNAME] body=${JSON.stringify(cnameJson)}`);
 
+      logs.push("✅ Tunnel + hostname deleted");
       setTunnelId("");
       setTunnelToken("");
       setPublicHostname(null);
-      show(true, `Tunnel + hostname deleted`);
+      show(true, "Tunnel + hostname deleted");
     } catch (e: any) {
-      setError(e.message);
+      const msg = e.message || "Network or CORS error";
+      logs.push(`❌ fetch threw error: ${msg}`);
+      setDebugLogs(logs);
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -153,8 +197,13 @@ run_parameters:
           </div>
 
           <div className="flex gap-3">
-            <Button onClick={createTunnel} disabled={loading} className="flex items-center gap-2">
-              {loading ? <Loader2 className="animate-spin w-4 h-4" /> : <PlusCircle size={16} />} Create
+            <Button
+              onClick={createTunnel}
+              disabled={loading}
+              className="flex items-center gap-2"
+            >
+              {loading ? <Loader2 className="animate-spin w-4 h-4" /> : <PlusCircle size={16} />}{" "}
+              Create
             </Button>
             <Button
               onClick={deleteTunnel}
@@ -221,7 +270,8 @@ run_parameters:
           )}
 
           <p className="text-xs text-gray-500">
-            Tunnel wordt gekoppeld aan <code>{`*.${FIXED_DOMAIN}`}</code> ↔︎ <code>{FIXED_SERVICE}</code> — bij verwijderen gaat het CNAME weg.
+            Tunnel wordt gekoppeld aan <code>{`*.${FIXED_DOMAIN}`}</code> ↔︎{" "}
+            <code>{FIXED_SERVICE}</code> — bij verwijderen gaat het CNAME weg.
           </p>
 
           <p className="text-[10px] text-gray-400 text-center">Build: {BUILD}</p>
