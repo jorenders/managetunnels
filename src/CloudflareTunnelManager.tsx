@@ -55,7 +55,50 @@ run_parameters:
     setLoading(true);
     setStatus(null);
     try {
+      // 1️⃣ create tunnel
       const res = await fetch(`${API}/api/create`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: tunnelName }),
+      });
+      const json = await res.json();
+      if (!json.success) {
+        console.error('Create tunnel error', json);
+        show(false, json.errors?.[0]?.message || 'Tunnel create failed');
+        return;
+      }
+
+      const id = json.result.id as string;
+      setTunnelId(id);
+      setTunnelToken(json.result.token as string);
+
+      // 2️⃣ create hostname
+      const hostRes = await fetch(`${API}/api/hostname`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tunnel_id: id,
+          subdomain: tunnelName,
+          domain: FIXED_DOMAIN,
+          service: FIXED_SERVICE,
+        }),
+      });
+      const hostJson = await hostRes.json();
+      if (!hostJson.success) {
+        console.error('Hostname create error', hostJson);
+        show(false, hostJson.errors?.[0]?.message || 'Hostname create failed');
+        return;
+      }
+      setPublicHostname(`${tunnelName}.${FIXED_DOMAIN}`);
+
+      show(true, `Tunnel + hostname ready (${id})`);
+    } catch (e: any) {
+      show(false, e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+/api/create`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: tunnelName }),
