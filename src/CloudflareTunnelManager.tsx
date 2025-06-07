@@ -17,6 +17,7 @@ const BUILD = import.meta.env.VITE_BUILD ?? "dev";
 
 export default function CloudflareTunnelManager() {
   // ─── state ────────────────────────────────────────────────────────────
+  const [debugLogs, setDebugLogs] = useState<string[]>([]);
   const [tunnelName, setTunnelName] = useState("api-tunnel");
   const [tunnelId, setTunnelId] = useState("");
   const [tunnelToken, setTunnelToken] = useState("");
@@ -61,11 +62,13 @@ run_parameters:
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: tunnelName }),
       });
-      const json = await res.json();
+      const json = await response.json();
       if (!json.success) {
-        console.error('Create tunnel error', json);
-        show(false, json.errors?.[0]?.message || 'Tunnel create failed');
-        return;
+        setDebugLogs(json.debug || []);
+        setError(json.errors?.[0]?.message || "Unknown error");
+      } else {
+        setDebugLogs(json.debug || []);
+        // … rest van je success-flow …
       }
 
       const id = json.result.id as string;
@@ -204,6 +207,17 @@ run_parameters:
             >
               {status.ok ? <CheckCircle size={18} /> : <XCircle size={18} />} {status.msg}
             </motion.div>
+          )}
+
+          {error && (
+            <div className="mt-4 p-4 bg-red-50 rounded">
+              <strong>Error:</strong> {error}
+              {debugLogs.length > 0 && (
+                <pre className="mt-2 p-2 bg-gray-100 text-xs overflow-auto">
+                  {debugLogs.join("\n")}
+                </pre>
+              )}
+            </div>
           )}
 
           <p className="text-xs text-gray-500">
