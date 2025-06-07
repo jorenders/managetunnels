@@ -98,39 +98,6 @@ run_parameters:
       setLoading(false);
     }
   }
-/api/create`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: tunnelName }),
-      });
-      const json = await res.json();
-      if (!json.success) throw new Error("Tunnel create failed");
-
-      const id = json.result.id as string;
-      setTunnelId(id);
-      setTunnelToken(json.result.token as string);
-
-      const hostRes = await fetch(`${API}/api/hostname`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          tunnel_id: id,
-          subdomain: tunnelName,
-          domain: FIXED_DOMAIN,
-          service: FIXED_SERVICE,
-        }),
-      });
-      const hostJson = await hostRes.json();
-      if (!hostJson.success) throw new Error("Hostname create failed");
-      setPublicHostname(`${tunnelName}.${FIXED_DOMAIN}`);
-
-      show(true, `Tunnel + hostname ready (${id})`);
-    } catch (e: any) {
-      show(false, e.message);
-    } finally {
-      setLoading(false);
-    }
-  }
 
   // ─── delete tunnel + CNAME ────────────────────────────────────────────
   async function deleteTunnel() {
